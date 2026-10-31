@@ -7,10 +7,13 @@ description: Query the user's Google Analytics 4 data — accounts, properties, 
 
 The `google-analytics` MCP server gives read-only access to the user's GA4 data.
 
-## Connecting
-- If any tool says the user is not signed in, call `ga_login`. A browser window opens for Google sign-in.
-- If `ga_login` says no OAuth client is configured, point the user to the README section "Create your OAuth client" (a free, one-time Google Cloud step). Once they have the downloaded JSON, call `ga_login` with `client_secret_file` set to its path.
-- `ga_auth_status` shows which account is connected; `ga_logout` disconnects it.
+## Connecting (setup is confusing for most people, so guide them carefully)
+- If the user isn't connected, any tool says they aren't signed in, or they ask to set up or connect GA: call `ga_setup`. It detects what's already done and returns the next step.
+- Walk them through **one step at a time**: the link, exact buttons, and what they should see. Wait for them to confirm, then call `ga_setup` again to check. Never dump all the steps at once.
+- Teammates who received a `client_secret_….json` file only need to put it in their Downloads folder. `ga_login` finds it automatically.
+- Before `ga_login`, warn them about the "unverified app" screen (Advanced → Go to …) and that they must tick **"See and download your Google Analytics data"**.
+- `ga_auth_status` shows the connected account. `ga_logout` disconnects it.
+- The full written guide is in docs/SETUP-GUIDE.md in the repo.
 
 ## Workflow
 1. `list_accounts` to find the property ID. If there are several properties and the user didn't say which, ask.

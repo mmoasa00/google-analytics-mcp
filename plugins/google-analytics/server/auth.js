@@ -4,7 +4,7 @@
 
 import { createServer } from 'node:http';
 import { randomBytes, createHash, createSign } from 'node:crypto';
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, readdir, stat } from 'node:fs/promises';
 import { homedir, platform } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -52,9 +52,47 @@ const b64url = (buf) => Buffer.from(buf).toString('base64url');
 // ---------- OAuth client (the "app" users sign in through) ----------
 
 function parseClient(json) {
-  const c = json?.installed || json?.web || json;
-  if (!c?.client_id) return null;
+  if (json?.web) {
+    throw new Error(
+      'This OAuth client is a "Web application". It must be a "Desktop app": in Google Cloud go to ' +
+        'Google Auth Platform → Clients → Create client → Application type "Desktop app", then download the new JSON.',
+    );
+  }
+  const c = json?.installed || json;
+  if (!c?.client_id || c.client_id.startsWith('YOUR_')) return null;
   return { client_id: c.client_id, client_secret: c.client_secret || '' };
+}
+
+// Google names downloads client_secret_<id>.apps.googleusercontent.com.json. Newest first.
+// `web` lists files of the wrong client type so setup can explain the mistake.
+export async function scanDownloadedClientFiles() {
+  const found = [];
+  const web = [];
+  for (const dir of [join(homedir(), 'Downloads'), join(homedir(), 'Desktop')]) {
+    let names;
+    try {
+      names = await readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (!/^client_secret.*\.json$/i.test(name)) continue;
+      const path = join(dir, name);
+      try {
+        const json = await readJson(path);
+        const mtime = (await stat(path)).mtimeMs;
+        if (json?.installed?.client_id) found.push({ path, mtime });
+        else if (json?.web?.client_id) web.push(path);
+      } catch {
+        // unreadable or not JSON: ignore
+      }
+    }
+  }
+  return { desktop: found.sort((a, b) => b.mtime - a.mtime).map((f) => f.path), web };
+}
+
+export async function findDownloadedClientFiles() {
+  return (await scanDownloadedClientFiles()).desktop;
 }
 
 export async function loadClient() {
@@ -74,7 +112,7 @@ export async function loadClient() {
 
 export async function importClientFile(path) {
   const client = parseClient(await readJson(path));
-  if (!client) throw new Error(`${path} is not a Google OAuth client JSON (expected an "installed" client).`);
+  if (!client) throw new Error(`${path} is not a Google OAuth client file. Download it again from Google Auth Platform → Clients.`);
   await writePrivateJson(CLIENT_FILE, { installed: client });
   return client;
 }
@@ -144,7 +182,8 @@ export async function getAccessToken({ force = false } = {}) {
   const found = await findCredentials();
   if (!found) {
     throw new NotAuthenticatedError(
-      'Not signed in to Google Analytics. Call the ga_login tool to sign in with Google.',
+      'Not signed in to Google Analytics. Call ga_setup to see what the user still needs to do ' +
+        '(it guides them step by step), or ga_login if they already have an OAuth client file.',
     );
   }
   const { cred, source } = found;
@@ -229,8 +268,13 @@ function startLogin(client, { timeoutMs = 10 * 60_000 } = {}) {
       if (url.searchParams.get('state') !== state) return send(400, 'Invalid request', 'State mismatch.');
       const error = url.searchParams.get('error');
       if (error) {
-        send(400, 'Sign-in cancelled', `Google returned: ${error}`);
-        return finish(new Error(`Google sign-in failed: ${error}`));
+        const why =
+          error === 'access_denied'
+            ? 'Sign-in was cancelled or blocked. If Google said "Access blocked", the app is in Testing mode and ' +
+              'this email is not a test user: publish the app or add the email under Google Auth Platform → Audience.'
+            : `Google returned: ${error}`;
+        send(400, 'Sign-in not completed', why);
+        return finish(new Error(why));
       }
       try {
         const port = server.address().port;
@@ -242,6 +286,12 @@ function startLogin(client, { timeoutMs = 10 * 60_000 } = {}) {
           redirect_uri: `http://127.0.0.1:${port}`,
           code_verifier: verifier,
         });
+        if (!String(tokens.scope || '').includes(SCOPES[0])) {
+          throw new Error(
+            'Google Analytics access was not granted: the box "See and download your Google Analytics data" ' +
+              'was not ticked. Run ga_login again and tick that box on the consent screen.',
+          );
+        }
         if (!tokens.refresh_token) throw new Error('Google did not return a refresh token. Try ga_login again.');
         const email = decodeIdTokenEmail(tokens.id_token || '');
         await writePrivateJson(TOKEN_FILE, {
@@ -288,12 +338,21 @@ function startLogin(client, { timeoutMs = 10 * 60_000 } = {}) {
 export async function login({ clientFile, waitMs = 120_000, open = true } = {}) {
   if (clientFile) await importClientFile(clientFile);
   if (!pendingLogin) {
-    const client = await loadClient();
+    let client = await loadClient();
     if (!client) {
+      const [downloaded] = await findDownloadedClientFiles();
+      if (downloaded) {
+        await importClientFile(downloaded);
+        client = await loadClient();
+      }
+    }
+    if (!client) {
+      const { web } = await scanDownloadedClientFiles();
+      if (web.length) parseClient({ web: {} }); // throws the "must be a Desktop app" explanation
       throw new Error(
-        'No Google OAuth client configured. Create a free "Desktop app" OAuth client in Google Cloud ' +
-          '(see the README, "Create your OAuth client"), download its JSON, then call ga_login with ' +
-          'client_secret_file set to that file path.',
+        'No Google OAuth client file found (looked for client_secret_*.json in Downloads and Desktop). ' +
+          'Call ga_setup to walk the user through creating one step by step, or pass client_secret_file ' +
+          'if the file is somewhere else.',
       );
     }
     const { urlReady, promise } = startLogin(client);

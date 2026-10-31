@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Google Analytics MCP server (stdio, zero dependencies).
 //   node index.js            -> run as an MCP server
-//   node index.js login [client.json] | status | logout
+//   node index.js setup [step] | guide | login [client.json] | status | logout
 
 import { createInterface } from 'node:readline';
 import * as auth from './auth.js';
 import * as ga from './ga.js';
+import { setupState, renderGuide } from './setup.js';
 
 const VERSION = '1.0.0';
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -29,9 +30,24 @@ const orderBys = {
 
 const TOOLS = [
   {
+    name: 'ga_setup',
+    description:
+      'Step-by-step setup guide for connecting Google Analytics. Checks what is already done (client file, sign-in, API access) and returns the exact next step with links, buttons to click and fixes for common errors. Call this first when the user wants to set up or connect Google Analytics, when they are stuck, or after each step to verify it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        step: {
+          type: 'string',
+          description: 'Optional: get one specific step instead of auto-detecting (start, teammate, 1-7).',
+        },
+      },
+    },
+    run: async (a) => setupState(a.step),
+  },
+  {
     name: 'ga_login',
     description:
-      'Sign in to Google Analytics with Google (opens a browser window). Call when other tools report the user is not signed in, or when the user wants to connect or switch accounts.',
+      'Sign in to Google Analytics with Google (opens a browser window). Finds a downloaded client_secret_*.json in Downloads/Desktop automatically. If no client file exists yet, use ga_setup instead to guide the user.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -167,7 +183,8 @@ const TOOLS = [
 
 const INSTRUCTIONS =
   'Read-only access to Google Analytics 4. Call list_accounts first to find property IDs. ' +
-  'If a tool says the user is not signed in, call ga_login. Use get_metadata to find valid dimension and metric names.';
+  'If the user is not set up or not signed in, call ga_setup and guide them one step at a time. ' +
+  'Use get_metadata to find valid dimension and metric names.';
 
 // ---------- JSON-RPC over stdio ----------
 
@@ -235,13 +252,17 @@ async function cli(cmd, arg) {
       const r = await auth.login({ clientFile: arg, waitMs: 10 * 60_000 });
       console.error(r.pending ? 'Sign-in timed out.' : `Signed in${r.email ? ` as ${r.email}` : ''}.`);
       process.exit(r.pending ? 1 : 0);
+    } else if (cmd === 'guide') {
+      process.stdout.write(renderGuide() + '\n');
+    } else if (cmd === 'setup') {
+      process.stdout.write((await setupState(arg)) + '\n');
     } else if (cmd === 'status') {
       console.error(json(await auth.status()));
     } else if (cmd === 'logout') {
       await auth.logout();
       console.error('Signed out.');
     } else {
-      console.error('Usage: node index.js [login [client.json] | status | logout]');
+      console.error('Usage: node index.js [setup [step] | guide | login [client.json] | status | logout]');
       process.exit(1);
     }
   } catch (err) {
