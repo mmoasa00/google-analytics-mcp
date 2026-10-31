@@ -11,7 +11,7 @@ The `google-analytics` MCP server gives read-only access to the user's GA4 data.
 - If the user isn't connected, any tool says they aren't signed in, or they ask to set up or connect GA: call `ga_setup`. It detects what's already done and returns the next step.
 - Walk them through **one step at a time**: the link, exact buttons, and what they should see. Wait for them to confirm, then call `ga_setup` again to check. Never dump all the steps at once.
 - Teammates who received a `client_secret_….json` file only need to put it in their Downloads folder. `ga_login` finds it automatically.
-- Before `ga_login`, warn them about the "unverified app" screen (Advanced → Go to …) and that they must tick **"See and download your Google Analytics data"**.
+- Before `ga_login`, have them confirm on the Audience page that the app is Internal or published, or that their email is a test user. This prevents "Access blocked". Also warn them about the "unverified app" screen (Advanced → Go to …) and that they must tick **"See and download your Google Analytics data"**.
 - `ga_auth_status` shows the connected account. `ga_logout` disconnects it.
 - The full written guide is in docs/SETUP-GUIDE.md in the repo.
 

@@ -17,7 +17,8 @@ Everything here is free. First person on the team: steps 1 to 7 (about 10 minute
 *For: Teammates who received a client file*
 
 1. Save the `client_secret_….json` file you received into your **Downloads** folder. Keep the name as it is.
-2. Go to step **6 (Connect)**.
+2. Unless the person who sent it says the app is published (or Internal), ask them to add your Google email as a **test user** first. Otherwise Google will say "Access blocked".
+3. Go to step **6 (Connect)**.
 
 **If something goes wrong:**
 - Renamed the file? Either rename it back to start with `client_secret`, or give Claude the full path to it.
@@ -97,16 +98,17 @@ Link: https://console.cloud.google.com/auth/clients
 ## Step 6: Connect
 *For: Everyone*
 
-1. In Claude, say **"connect my Google Analytics"**. In Claude Code you can also type `/ga-connect`. Claude finds the file in your Downloads folder automatically.
-2. A browser tab opens. Choose the Google account that has access to your Google Analytics.
-3. If you see **"Google hasn't verified this app"**: click **Advanced** (bottom left), then **Go to GA for Claude (unsafe)**. It is your own app, so this is expected.
-4. **Important:** on the next screen, tick the box **See and download your Google Analytics data**, then click **Continue**.
-5. The tab shows **Connected to Google Analytics**. Close it and go back to Claude.
+1. **Before you sign in, check who is allowed:** open Google Auth Platform → **Audience** (https://console.cloud.google.com/auth/audience). If it says **Internal**, or Publishing status is **In production**, you are fine. If it says **Testing**, your Google email must be listed under **Test users**; if it is not, click **+ Add users**, add it and click **Save**. This matters most if you reused an existing project.
+2. In Claude, say **"connect my Google Analytics"**. In Claude Code you can also type `/ga-connect`. Claude finds the file in your Downloads folder automatically.
+3. A browser tab opens. Choose the Google account that has access to your Google Analytics.
+4. If you see **"Google hasn't verified this app"**: click **Advanced** (bottom left), then **Go to <your app name> (unsafe)**. It is your own app, so this is expected.
+5. **Important:** on the next screen, tick the box **See and download your Google Analytics data**, then click **Continue**.
+6. The tab shows **Connected to Google Analytics**. Close it and go back to Claude.
 
 **You should see:** Claude confirms you are signed in and lists your Google Analytics accounts.
 
 **If something goes wrong:**
-- **"Access blocked: … has not completed the Google verification process"**: the app is in Testing and your email is not a test user. Ask the first person to do step 4.
+- **"Access blocked: … has not completed the Google verification process"**: the app is in Testing and your email is not a test user. Add it on the Audience page (first item above, or step 4), then sign in again.
 - **"Error 400: redirect_uri_mismatch"**: the client is a "Web application". Redo step 5 with **Desktop app**.
 - **"Error 401: deleted_client"** or **"invalid_client"**: the client was deleted or the file is wrong. Get a fresh file (step 5).
 - No browser tab opened: Claude shows a link. Copy it into your browser.

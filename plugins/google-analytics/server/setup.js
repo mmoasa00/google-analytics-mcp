@@ -22,6 +22,7 @@ export const STEPS = [
     who: 'Teammates who received a client file',
     steps: [
       'Save the `client_secret_….json` file you received into your **Downloads** folder. Keep the name as it is.',
+      'Unless the person who sent it says the app is published (or Internal), ask them to add your Google email as a **test user** first. Otherwise Google will say "Access blocked".',
       'Go to step **6 (Connect)**.',
     ],
     problems: [
@@ -110,15 +111,16 @@ export const STEPS = [
     title: 'Connect',
     who: 'Everyone',
     steps: [
+      '**Before you sign in, check who is allowed:** open Google Auth Platform → **Audience** (https://console.cloud.google.com/auth/audience). If it says **Internal**, or Publishing status is **In production**, you are fine. If it says **Testing**, your Google email must be listed under **Test users**; if it is not, click **+ Add users**, add it and click **Save**. This matters most if you reused an existing project.',
       'In Claude, say **"connect my Google Analytics"**. In Claude Code you can also type `/ga-connect`. Claude finds the file in your Downloads folder automatically.',
       'A browser tab opens. Choose the Google account that has access to your Google Analytics.',
-      'If you see **"Google hasn\'t verified this app"**: click **Advanced** (bottom left), then **Go to GA for Claude (unsafe)**. It is your own app, so this is expected.',
+      'If you see **"Google hasn\'t verified this app"**: click **Advanced** (bottom left), then **Go to <your app name> (unsafe)**. It is your own app, so this is expected.',
       '**Important:** on the next screen, tick the box **See and download your Google Analytics data**, then click **Continue**.',
       'The tab shows **Connected to Google Analytics**. Close it and go back to Claude.',
     ],
     expect: 'Claude confirms you are signed in and lists your Google Analytics accounts.',
     problems: [
-      '**"Access blocked: … has not completed the Google verification process"**: the app is in Testing and your email is not a test user. Ask the first person to do step 4.',
+      '**"Access blocked: … has not completed the Google verification process"**: the app is in Testing and your email is not a test user. Add it on the Audience page (first item above, or step 4), then sign in again.',
       '**"Error 400: redirect_uri_mismatch"**: the client is a "Web application". Redo step 5 with **Desktop app**.',
       '**"Error 401: deleted_client"** or **"invalid_client"**: the client was deleted or the file is wrong. Get a fresh file (step 5).',
       'No browser tab opened: Claude shows a link. Copy it into your browser.',
@@ -216,7 +218,13 @@ export async function setupState(stepId) {
         : `Found a downloaded client file: ${downloaded[0]}. ga_login will use it automatically.`,
     );
     if (st.error) out.push(`Last sign-in problem: ${st.error}`);
-    out.push('Next: explain step 6 briefly, then call ga_login.');
+    const project = client?.project_id || (await auth.readClientProject(downloaded[0]));
+    const audience = `https://console.cloud.google.com/auth/audience${project ? `?project=${project}` : ''}`;
+    out.push(
+      'Next: walk through step 6. FIRST ask the user to confirm on the Audience page ' +
+        `(${audience}) that the app is Internal, In production, or lists their email under Test users. ` +
+        'Wait for their answer before calling ga_login; otherwise Google shows "Access blocked".',
+    );
     next = '6';
   } else if (webFiles.length) {
     out.push(

@@ -8,7 +8,7 @@ import * as auth from './auth.js';
 import * as ga from './ga.js';
 import { setupState, renderGuide } from './setup.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 const json = (v) => JSON.stringify(v, null, 1);

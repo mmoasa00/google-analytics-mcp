@@ -60,7 +60,11 @@ function parseClient(json) {
   }
   const c = json?.installed || json;
   if (!c?.client_id || c.client_id.startsWith('YOUR_')) return null;
-  return { client_id: c.client_id, client_secret: c.client_secret || '' };
+  return {
+    client_id: c.client_id,
+    client_secret: c.client_secret || '',
+    ...(c.project_id ? { project_id: c.project_id } : {}),
+  };
 }
 
 // Google names downloads client_secret_<id>.apps.googleusercontent.com.json. Newest first.
@@ -89,6 +93,15 @@ export async function scanDownloadedClientFiles() {
     }
   }
   return { desktop: found.sort((a, b) => b.mtime - a.mtime).map((f) => f.path), web };
+}
+
+export async function readClientProject(path) {
+  if (!path) return null;
+  try {
+    return parseClient(await readJson(path))?.project_id || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function findDownloadedClientFiles() {

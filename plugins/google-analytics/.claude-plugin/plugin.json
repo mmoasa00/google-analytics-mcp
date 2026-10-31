@@ -1,6 +1,6 @@
 {
   "name": "google-analytics",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Free, read-only Google Analytics 4 connector: accounts, properties, reports, pivots, funnels and realtime data, straight from Google's APIs.",
   "author": { "name": "mmoasa00" },
   "homepage": "https://github.com/mmoasa00/google-analytics-mcp",
