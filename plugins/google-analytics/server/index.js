@@ -8,7 +8,7 @@ import * as auth from './auth.js';
 import * as ga from './ga.js';
 import { setupState, renderGuide } from './setup.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 const json = (v) => JSON.stringify(v, null, 1);
@@ -53,7 +53,7 @@ const TOOLS = [
       properties: {
         client_secret_file: {
           type: 'string',
-          description: 'Optional path to a downloaded Google OAuth "Desktop app" client JSON. Needed only the first time if no client is configured.',
+          description: 'Optional path to a downloaded Google OAuth "Desktop app" client JSON, or a service account key JSON (connects without a browser and never expires).',
         },
         wait_seconds: { type: 'number', description: 'How long to wait for the user to finish signing in (default 120).' },
       },
@@ -62,7 +62,9 @@ const TOOLS = [
       const r = await auth.login({ clientFile: a.client_secret_file, waitMs: (a.wait_seconds ?? 120) * 1000 });
       return r.pending
         ? `Waiting for sign-in. A browser window should have opened; if not, open this URL:\n${r.url}\nAfter signing in, call ga_auth_status (or ga_login again) to confirm.`
-        : `Signed in to Google Analytics${r.email ? ` as ${r.email}` : ''}.`;
+        : r.serviceAccount
+          ? `Connected with service account ${r.email}. It can read only GA properties where this email was added as a Viewer (GA Admin → Property access management).`
+          : `Signed in to Google Analytics${r.email ? ` as ${r.email}` : ''}.`;
     },
   },
   {
@@ -73,7 +75,7 @@ const TOOLS = [
   },
   {
     name: 'ga_logout',
-    description: 'Disconnect the Google account saved by ga_login on this computer.',
+    description: 'Disconnect the Google account or service account saved by ga_login on this computer.',
     inputSchema: { type: 'object', properties: {} },
     run: async () => (await auth.logout(), 'Signed out. Saved Google token removed.'),
   },

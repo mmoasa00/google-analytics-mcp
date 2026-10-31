@@ -112,7 +112,11 @@ export function compactReport(r) {
   const out = { row_count: r.rowCount ?? 0, columns: [...dims, ...mets], rows: (r.rows || []).map(row) };
   if (r.totals?.length) out.totals = r.totals.map(row);
   if (r.metadata && Object.keys(r.metadata).length) out.metadata = r.metadata;
-  if (r.propertyQuota) out.quota = r.propertyQuota;
+  // Only surface quota when a limit is getting close (under 10% left).
+  const low = Object.entries(r.propertyQuota || {}).filter(
+    ([, q]) => q?.remaining !== undefined && q.remaining < (q.consumed + q.remaining) * 0.1,
+  );
+  if (low.length) out.quota_warning = Object.fromEntries(low);
   return out;
 }
 

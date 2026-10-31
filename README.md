@@ -21,7 +21,7 @@ Lets Claude read **all of your Google Analytics 4 data**: accounts, properties, 
 /plugin install google-analytics@google-analytics-mcp
 ```
 
-Then restart Claude Code.
+Then restart Claude Code, or start a new session. The Google Analytics tools only appear in sessions started after installing.
 
 **Claude Desktop, Cursor and other MCP clients:** add this to the app's MCP config. In Claude Desktop that's Settings → Developer → Edit Config:
 
@@ -47,7 +47,15 @@ In Claude Code you can also type `/ga-setup`. Claude checks what's already done 
 | You are… | What you'll do | Time |
 |---|---|---|
 | **The first person on your team** | Create a free Google "OAuth client" (a sign-in key for your team) in Google Cloud, then connect | ~10 min, once |
+| **Someone who already has a Google Cloud project** | Reuse it: turn on 2 APIs, check who can sign in, create a Desktop client, then connect | ~5 min |
 | **A teammate** who received a `client_secret_….json` file | Put the file in your Downloads folder, then say "connect my Google Analytics" | ~2 min |
+| **Just you, and you never want to reconnect** | Use a service account instead of signing in ([guide](docs/SETUP-GUIDE.md#optional-never-reconnect-service-account)) | ~10 min, once |
+
+> **The 4 things that trip people up** (Claude warns you about each one at the right moment):
+> 1. The client must be a **Desktop app**, not a "Web application".
+> 2. Click **Download JSON** as soon as the client is created. Google shows the secret only once.
+> 3. If your app is in **Testing**, only listed test users can sign in ("Access blocked"), and everyone is signed out every 7 days. **Publish the app** to fix both ([below](#stay-connected-no-7-day-sign-out)).
+> 4. On Google's permission screen, **tick the box** "See and download your Google Analytics data".
 
 Prefer reading? The full step-by-step checklist is in **[docs/SETUP-GUIDE.md](docs/SETUP-GUIDE.md)**.
 
@@ -68,7 +76,7 @@ Google requires every app that signs people in to have an "OAuth client". It's f
 1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate).
 2. Enable the [Analytics Admin API](https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com) and the [Analytics Data API](https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com).
 3. [Google Auth Platform](https://console.cloud.google.com/auth/overview) → **Get started**. Choose **Internal** if everyone is on one Google Workspace domain; otherwise choose **External**.
-4. External only: [Audience](https://console.cloud.google.com/auth/audience) → **Publish app**. Or add test users, but then sign-ins expire every 7 days.
+4. External only: [Audience](https://console.cloud.google.com/auth/audience) → **Publish app** (recommended). Or add each person under **Test users**, but then everyone is signed out every 7 days.
 5. [Clients](https://console.cloud.google.com/auth/clients) → **Create client** → **Desktop app** → **Download JSON** *straight away*. Google shows the secret only once.
 6. Say "connect my Google Analytics". The file is found in your Downloads folder automatically. You can also connect from a terminal:
    ```bash
@@ -86,13 +94,25 @@ Each person signs in with **their own** Google account and sees only the GA prop
 
 ---
 
+## Stay connected (no 7-day sign-out)
+
+Google signs users out every 7 days while an app's publishing status is **Testing**. There are two ways to stop that:
+
+1. **Publish the app (recommended for teams).** Go to [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience) → **Publish app** → **Confirm**. Then say "connect my Google Analytics" once more: sign-ins made while the app was in Testing still expire. After that, people stay connected. Unverified apps show a one-time warning screen and are limited to 100 users. Google's [verification](https://support.google.com/cloud/answer/13463073) is free and removes both.
+2. **Use a service account (best for one person or automation).** A robot account that never signs out and needs no browser. Create a key, add the account's email as a **Viewer** in Google Analytics, then say *"connect Google Analytics using ~/Downloads/key.json"*. See the [step-by-step guide](docs/SETUP-GUIDE.md#optional-never-reconnect-service-account).
+
+(If everyone is on one Google Workspace domain, choosing **Internal** in step 3 avoids the limit entirely.)
+
+---
+
 ## Other ways to authenticate
 
 The server checks for credentials in this order:
 
 | Method | How |
 |---|---|
-| **Service account** (servers, automation, no browser) | Create a service account key in Google Cloud. In GA, go to Admin → Property access management and add the service account's email as **Viewer**. Then set `GA_CREDENTIALS_FILE=/path/to/key.json`. |
+| **Service account key in an env var** (servers, CI) | Set `GA_CREDENTIALS_FILE=/path/to/key.json`. |
+| **Service account via `ga_login`** | Say "connect Google Analytics using /path/to/key.json". The key is copied to `~/.config/ga-mcp/service-account.json` (readable only by you). |
 | **Browser sign-in** (`ga_login`) | Described above. The token is saved to `~/.config/ga-mcp/token.json` (readable only by you). |
 | **gcloud** | If you've already run `gcloud auth application-default login` with the `analytics.readonly` scope, it's picked up automatically. |
 
@@ -139,7 +159,9 @@ Claude Code also gets a `google-analytics` skill, plus the `/ga-setup`, `/ga-con
 | 403 on a property | The signed-in account doesn't have access to that property in GA. |
 | "Access blocked" when signing in | The app is in Testing and your email isn't a test user. See step 4 of the guide. |
 | "Google Analytics access was not granted" | Tick **See and download your Google Analytics data** on the Google consent screen. |
-| "rejected the saved credentials" | Run `ga_login` again. If this happens weekly, publish the app (step 4). |
+| Signed out every 7 days / "rejected the saved credentials" | The app is in Testing. See [Stay connected](#stay-connected-no-7-day-sign-out). |
+| "Error 400: redirect_uri_mismatch" | The client is a "Web application". Create a **Desktop app** client instead. |
+| Tools don't show up after installing | Restart Claude Code or start a new session. |
 | No browser opens | Copy the URL that `ga_login` prints and open it yourself. |
 
 ## License

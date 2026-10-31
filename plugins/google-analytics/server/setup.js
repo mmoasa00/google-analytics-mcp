@@ -10,10 +10,11 @@ export const STEPS = [
     title: 'Before you begin: pick your path',
     who: 'Everyone',
     steps: [
-      'Did someone on your team already send you a file named like `client_secret_….apps.googleusercontent.com.json`?',
-      '**Yes** → skip to **Teammates: save the file you received**. You only need 2 minutes.',
-      '**No**, or you are the first person on your team → follow steps **1 to 7**. About 10 minutes, once. Afterwards you share one file with your team.',
       'You need a Google account that can already see your data in Google Analytics (https://analytics.google.com).',
+      '**A teammate sent you a `client_secret_….json` file?** → go to **Teammates: save the file you received**. About 2 minutes.',
+      '**Starting fresh** (first person on the team) → follow steps **1 to 7**. About 10 minutes, once. Afterwards you share one file with your team.',
+      '**Already have a Google Cloud project** (for example one you used for Google sign-in or another API)? You can reuse it: skip step 1, and in step 3 skip whatever is already set up. Do steps 2, 4 and 5 carefully. Step 4 is the one people miss. Note that Google shows that project\'s app name on the sign-in screen, and publishing it (step 4) affects that app too. If the project belongs to another product, a new project is cleaner.',
+      '**Just you, and you never want to reconnect?** A service account is an alternative to steps 3 to 6: see **Optional: never reconnect (service account)** at the end.',
     ],
   },
   {
@@ -72,20 +73,25 @@ export const STEPS = [
       '**Finish**: tick **I agree to the Google API Services: User Data Policy**, click **Continue**, then **Create**.',
     ],
     expect: 'You land on the Google Auth Platform **Overview** page with no "not configured" message.',
+    problems: [
+      'No **Get started** button, just an Overview page? The sign-in screen is already set up (common when you reuse a project). Skip to step 4.',
+    ],
   },
   {
     id: '4',
-    title: 'Allow people to sign in (External only)',
-    who: 'First person on the team. Skip if you chose Internal.',
+    title: 'Allow people to sign in and stay signed in (External only)',
+    who: 'First person on the team. Skip if the Audience page says Internal.',
     link: 'https://console.cloud.google.com/auth/audience',
     steps: [
-      'Open the link. Under **Publishing status** it says **Testing**.',
-      '**Recommended:** click **Publish app**, then **Confirm**. Anyone you share with can now sign in. They will see a "Google hasn\'t verified this app" warning they click past (shown in step 6). Up to 100 people can use an unverified app.',
-      '**Or** stay in Testing: under **Test users** click **Add users**, enter each person\'s Gmail address, click **Save**. Note: in Testing mode everyone has to reconnect every 7 days.',
+      'Open the link. Look at **Publishing status**.',
+      'If it says **Testing**, only listed test users can sign in, and Google signs everyone out every **7 days**.',
+      '**Recommended:** click **Publish app**, then **Confirm**. Status becomes **In production**: anyone you share the file with can sign in, and nobody gets signed out after 7 days. People see a "Google hasn\'t verified this app" screen once and click past it (step 6). Up to 100 people can use an unverified app.',
+      '**Or**, to stay in Testing: under **Test users** click **+ Add users**, enter each person\'s Google email, and click **Save**. Everyone will need to reconnect every 7 days.',
     ],
-    expect: 'Publishing status shows **In production**, or your test users are listed.',
+    expect: 'Publishing status shows **In production**, or every person\'s email is listed under Test users.',
     problems: [
-      'If Google asks you to "prepare for verification", you can ignore it. Verification (free) only removes the warning screen and the 100-user limit.',
+      'Already connected while the app was in Testing? After publishing, reconnect once ("connect my Google Analytics") so your new sign-in no longer expires.',
+      'If Google asks you to "prepare for verification", you can ignore it. Verification is free and only removes the warning screen and the 100-user limit.',
     ],
   },
   {
@@ -140,22 +146,50 @@ export const STEPS = [
       '**No accounts listed**: the Google account you signed in with has no access in Google Analytics. Have a GA admin add you under Admin → Account access management (Viewer is enough), or say "log out of Google Analytics" and connect with another account.',
     ],
   },
+  {
+    id: 'service',
+    title: 'Optional: never reconnect (service account)',
+    who: 'Anyone who wants a connection that never expires and needs no browser sign-in',
+    link: 'https://console.cloud.google.com/iam-admin/serviceaccounts',
+    steps: [
+      'A service account is a robot Google account. It never gets signed out, but it only sees the GA properties you explicitly add it to. You still need steps 1 and 2 (a project with both APIs on).',
+      'Open the link (project picker = your project). Click **+ Create service account**. Name: `ga-reader`. Click **Create and continue**, skip the optional role and user steps, then click **Done**.',
+      'Click the new account in the list. Copy its email (looks like `ga-reader@your-project.iam.gserviceaccount.com`).',
+      'Open the **Keys** tab → **Add key** → **Create new key** → **JSON** → **Create**. A key file downloads. Keep it private: it works like a password.',
+      'Open Google Analytics (https://analytics.google.com) → **Admin** (gear icon, bottom left) → under **Property** (or **Account** for all properties) click **Access management** → **+** → **Add users**. Paste the service account email, choose role **Viewer**, untick "Notify new users by email", click **Add**.',
+      'In Claude, say: **"connect Google Analytics using ~/Downloads/<the key file name>.json"**.',
+    ],
+    expect: 'Claude says it is connected with the service account, and lists the properties you added it to.',
+    problems: [
+      '**"Service account key creation is disabled"**: your organization blocks keys. Use the normal sign-in and publish the app (step 4) instead.',
+      '**No properties listed**: the service account email was not added in GA Access management, or was added to a different property.',
+      'Each person needs their own key, or share one key privately within the team. Anyone with the key can read the properties it was added to.',
+    ],
+  },
 ];
 
 const byId = (id) => STEPS.find((s) => s.id === String(id));
 
-export function renderStep(s, { heading = '###' } = {}) {
+// Points Cloud Console links at a specific project so the user lands in the right one.
+function withProject(text, project) {
+  if (!project) return text;
+  return text.replace(/https:\/\/console\.cloud\.google\.com\/(?!projectcreate)[^\s)*]+/g, (url) =>
+    `${url}${url.includes('?') ? '&' : '?'}project=${project}`,
+  );
+}
+
+export function renderStep(s, { heading = '###', project } = {}) {
   const label = /^\d+$/.test(s.id) ? `Step ${s.id}: ${s.title}` : s.title;
   const lines = [`${heading} ${label}`, `*For: ${s.who}*`, ''];
   if (s.link) lines.push(`Link: ${s.link}`, '');
   s.steps.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
   if (s.expect) lines.push('', `**You should see:** ${s.expect}`);
   if (s.problems?.length) lines.push('', '**If something goes wrong:**', ...s.problems.map((p) => `- ${p}`));
-  return lines.join('\n');
+  return withProject(lines.join('\n'), project);
 }
 
 export function renderGuide() {
-  const order = ['start', 'teammate', '1', '2', '3', '4', '5', '6', '7'];
+  const order = ['start', 'teammate', '1', '2', '3', '4', '5', '6', '7', 'service'];
   return [
     '# Setup guide: connect Google Analytics to Claude',
     '',
@@ -173,18 +207,23 @@ const GUIDE_RULES =
   'Wait for the user to say they finished it (or describe what they see) before moving on. ' +
   'If they report an error, match it against "If something goes wrong". ' +
   'Call ga_setup again any time to re-check where they are; call ga_setup with step="<id>" to get a specific step. ' +
-  'Step order for the first person: start → 1 → 2 → 3 → 4 (External only) → 5 → 6 → 7. Teammates: start → teammate → 6 → 7.';
+  'Step order for the first person: start → 1 → 2 → 3 → 4 (External only) → 5 → 6 → 7. Teammates: start → teammate → 6 → 7. ' +
+  'Reusing an existing project: start → 2 → 3 (skip if already set up) → 4 → 5 → 6 → 7. ' +
+  'If the user asks to avoid reconnecting every 7 days: step 4 (publish) or step "service". ' +
+  'Ask early whether they already have a Google Cloud project, and once known pass links for that project.';
 
 // Works out where the user is and returns the step they should do next.
 export async function setupState(stepId) {
+  const client = await auth.loadClient().catch(() => null);
+  const { desktop: downloaded, web: webFiles } = client ? { desktop: [], web: [] } : await auth.scanDownloadedClientFiles();
+  const project = client?.project_id || (await auth.readClientProject(downloaded[0]));
+
   if (stepId) {
     const s = byId(stepId);
     if (!s) throw new Error(`Unknown step "${stepId}". Steps: ${STEPS.map((x) => x.id).join(', ')}`);
-    return `${GUIDE_RULES}\n\n${renderStep(s)}`;
+    return `${GUIDE_RULES}\n\n${renderStep(s, { project })}`;
   }
 
-  const client = await auth.loadClient();
-  const { desktop: downloaded, web: webFiles } = client ? { desktop: [], web: [] } : await auth.scanDownloadedClientFiles();
   let st;
   try {
     st = await auth.status();
@@ -203,6 +242,9 @@ export async function setupState(stepId) {
           `SETUP COMPLETE. Signed in${st.email ? ` as ${st.email}` : ''} via ${st.source}.`,
           `${accounts.length} account(s), ${props} GA4 propert${props === 1 ? 'y' : 'ies'} available.`,
           'Tell the user it works. If they set this up for a team, remind them to share the client_secret JSON privately (step 7).',
+          ...(st.source === 'ga_login'
+            ? ['If their app is still in Testing (step 4), tell them Google will sign them out every 7 days unless they publish it or use a service account (step "service").']
+            : []),
         ].join('\n');
       }
       out.push(`Signed in${st.email ? ` as ${st.email}` : ''}, but this Google account has no Google Analytics properties.`);
@@ -218,7 +260,6 @@ export async function setupState(stepId) {
         : `Found a downloaded client file: ${downloaded[0]}. ga_login will use it automatically.`,
     );
     if (st.error) out.push(`Last sign-in problem: ${st.error}`);
-    const project = client?.project_id || (await auth.readClientProject(downloaded[0]));
     const audience = `https://console.cloud.google.com/auth/audience${project ? `?project=${project}` : ''}`;
     out.push(
       'Next: walk through step 6. FIRST ask the user to confirm on the Audience page ' +
@@ -236,5 +277,5 @@ export async function setupState(stepId) {
     out.push('Not set up yet: no OAuth client file found in Downloads or Desktop, and not signed in.');
     next = 'start';
   }
-  return `${GUIDE_RULES}\n\nCURRENT STATE: ${out.join('\n')}\n\n${renderStep(byId(next))}`;
+  return `${GUIDE_RULES}\n\nCURRENT STATE: ${out.join('\n')}\n\n${renderStep(byId(next), { project })}`;
 }

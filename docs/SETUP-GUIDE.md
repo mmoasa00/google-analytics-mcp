@@ -8,10 +8,11 @@ Everything here is free. First person on the team: steps 1 to 7 (about 10 minute
 ## Before you begin: pick your path
 *For: Everyone*
 
-1. Did someone on your team already send you a file named like `client_secret_….apps.googleusercontent.com.json`?
-2. **Yes** → skip to **Teammates: save the file you received**. You only need 2 minutes.
-3. **No**, or you are the first person on your team → follow steps **1 to 7**. About 10 minutes, once. Afterwards you share one file with your team.
-4. You need a Google account that can already see your data in Google Analytics (https://analytics.google.com).
+1. You need a Google account that can already see your data in Google Analytics (https://analytics.google.com).
+2. **A teammate sent you a `client_secret_….json` file?** → go to **Teammates: save the file you received**. About 2 minutes.
+3. **Starting fresh** (first person on the team) → follow steps **1 to 7**. About 10 minutes, once. Afterwards you share one file with your team.
+4. **Already have a Google Cloud project** (for example one you used for Google sign-in or another API)? You can reuse it: skip step 1, and in step 3 skip whatever is already set up. Do steps 2, 4 and 5 carefully. Step 4 is the one people miss. Note that Google shows that project's app name on the sign-in screen, and publishing it (step 4) affects that app too. If the project belongs to another product, a new project is cleaner.
+5. **Just you, and you never want to reconnect?** A service account is an alternative to steps 3 to 6: see **Optional: never reconnect (service account)** at the end.
 
 ## Teammates: save the file you received
 *For: Teammates who received a client file*
@@ -64,19 +65,24 @@ Link: https://console.cloud.google.com/auth/overview
 
 **You should see:** You land on the Google Auth Platform **Overview** page with no "not configured" message.
 
-## Step 4: Allow people to sign in (External only)
-*For: First person on the team. Skip if you chose Internal.*
+**If something goes wrong:**
+- No **Get started** button, just an Overview page? The sign-in screen is already set up (common when you reuse a project). Skip to step 4.
+
+## Step 4: Allow people to sign in and stay signed in (External only)
+*For: First person on the team. Skip if the Audience page says Internal.*
 
 Link: https://console.cloud.google.com/auth/audience
 
-1. Open the link. Under **Publishing status** it says **Testing**.
-2. **Recommended:** click **Publish app**, then **Confirm**. Anyone you share with can now sign in. They will see a "Google hasn't verified this app" warning they click past (shown in step 6). Up to 100 people can use an unverified app.
-3. **Or** stay in Testing: under **Test users** click **Add users**, enter each person's Gmail address, click **Save**. Note: in Testing mode everyone has to reconnect every 7 days.
+1. Open the link. Look at **Publishing status**.
+2. If it says **Testing**, only listed test users can sign in, and Google signs everyone out every **7 days**.
+3. **Recommended:** click **Publish app**, then **Confirm**. Status becomes **In production**: anyone you share the file with can sign in, and nobody gets signed out after 7 days. People see a "Google hasn't verified this app" screen once and click past it (step 6). Up to 100 people can use an unverified app.
+4. **Or**, to stay in Testing: under **Test users** click **+ Add users**, enter each person's Google email, and click **Save**. Everyone will need to reconnect every 7 days.
 
-**You should see:** Publishing status shows **In production**, or your test users are listed.
+**You should see:** Publishing status shows **In production**, or every person's email is listed under Test users.
 
 **If something goes wrong:**
-- If Google asks you to "prepare for verification", you can ignore it. Verification (free) only removes the warning screen and the 100-user limit.
+- Already connected while the app was in Testing? After publishing, reconnect once ("connect my Google Analytics") so your new sign-in no longer expires.
+- If Google asks you to "prepare for verification", you can ignore it. Verification is free and only removes the warning screen and the 100-user limit.
 
 ## Step 5: Create the OAuth client and download it
 *For: First person on the team*
@@ -123,4 +129,23 @@ Link: https://console.cloud.google.com/auth/clients
 **If something goes wrong:**
 - **"API has not been used … or it is disabled"**: one of the APIs from step 2 is off, in the project that owns the client file. Open the link in the error and click **Enable**, wait 1 minute, try again.
 - **No accounts listed**: the Google account you signed in with has no access in Google Analytics. Have a GA admin add you under Admin → Account access management (Viewer is enough), or say "log out of Google Analytics" and connect with another account.
+
+## Optional: never reconnect (service account)
+*For: Anyone who wants a connection that never expires and needs no browser sign-in*
+
+Link: https://console.cloud.google.com/iam-admin/serviceaccounts
+
+1. A service account is a robot Google account. It never gets signed out, but it only sees the GA properties you explicitly add it to. You still need steps 1 and 2 (a project with both APIs on).
+2. Open the link (project picker = your project). Click **+ Create service account**. Name: `ga-reader`. Click **Create and continue**, skip the optional role and user steps, then click **Done**.
+3. Click the new account in the list. Copy its email (looks like `ga-reader@your-project.iam.gserviceaccount.com`).
+4. Open the **Keys** tab → **Add key** → **Create new key** → **JSON** → **Create**. A key file downloads. Keep it private: it works like a password.
+5. Open Google Analytics (https://analytics.google.com) → **Admin** (gear icon, bottom left) → under **Property** (or **Account** for all properties) click **Access management** → **+** → **Add users**. Paste the service account email, choose role **Viewer**, untick "Notify new users by email", click **Add**.
+6. In Claude, say: **"connect Google Analytics using ~/Downloads/<the key file name>.json"**.
+
+**You should see:** Claude says it is connected with the service account, and lists the properties you added it to.
+
+**If something goes wrong:**
+- **"Service account key creation is disabled"**: your organization blocks keys. Use the normal sign-in and publish the app (step 4) instead.
+- **No properties listed**: the service account email was not added in GA Access management, or was added to a different property.
+- Each person needs their own key, or share one key privately within the team. Anyone with the key can read the properties it was added to.
 

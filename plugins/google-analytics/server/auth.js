@@ -25,6 +25,7 @@ export const CONFIG_DIR =
     : join(homedir(), '.config', 'ga-mcp'));
 const CLIENT_FILE = join(CONFIG_DIR, 'oauth-client.json');
 const TOKEN_FILE = join(CONFIG_DIR, 'token.json');
+const SERVICE_ACCOUNT_FILE = join(CONFIG_DIR, 'service-account.json');
 const BUNDLED_CLIENT = join(dirname(fileURLToPath(import.meta.url)), '..', 'oauth-client.json');
 const GCLOUD_ADC =
   platform() === 'win32'
@@ -145,8 +146,10 @@ async function postToken(params) {
     const msg = body.error_description || body.error || res.statusText;
     if (body.error === 'invalid_grant') {
       throw new NotAuthenticatedError(
-        `Google rejected the saved credentials (${msg}). If you signed in with ga_login, run it again; ` +
-          'if you use a key file, check that it is valid.',
+        `Google rejected the saved credentials (${msg}). If you signed in with ga_login, run it again. ` +
+          'If this happens about every 7 days, the app is in Testing mode: publish it (Google Auth Platform → ' +
+          'Audience → Publish app) or use a service account to stay connected. ' +
+          'If you use a key file, check that it is valid.',
       );
     }
     throw new Error(`Google token request failed: ${msg}`);
@@ -183,6 +186,8 @@ async function findCredentials() {
     if (!cred) throw new Error(`Credentials file not found: ${envPath}`);
     return { cred, source: envPath };
   }
+  const sa = await readJson(SERVICE_ACCOUNT_FILE);
+  if (sa?.type === 'service_account') return { cred: sa, source: 'service account (ga_login)' };
   const saved = await readJson(TOKEN_FILE);
   if (saved?.refresh_token) return { cred: saved, source: 'ga_login' };
   const adc = await readJson(GCLOUD_ADC);
@@ -314,6 +319,7 @@ function startLogin(client, { timeoutMs = 10 * 60_000 } = {}) {
           refresh_token: tokens.refresh_token,
           email,
         });
+        await rm(SERVICE_ACCOUNT_FILE, { force: true });
         clearCachedToken();
         send(200, 'Connected to Google Analytics', 'You can close this tab and return to Claude.');
         finish(null, { email });
@@ -349,7 +355,12 @@ function startLogin(client, { timeoutMs = 10 * 60_000 } = {}) {
  * If it is not finished in time, the listener keeps running so a later call can pick it up.
  */
 export async function login({ clientFile, waitMs = 120_000, open = true } = {}) {
-  if (clientFile) await importClientFile(clientFile);
+  if (clientFile) {
+    const json = await readJson(clientFile);
+    if (!json) throw new Error(`File not found: ${clientFile}`);
+    if (json.type === 'service_account') return useServiceAccount(json);
+    await importClientFile(clientFile);
+  }
   if (!pendingLogin) {
     let client = await loadClient();
     if (!client) {
@@ -384,7 +395,25 @@ export async function login({ clientFile, waitMs = 120_000, open = true } = {}) 
   return result.pending ? { pending: true, url } : { pending: false, email: result.email };
 }
 
+// Service accounts need no browser and never expire; the account's email must be a Viewer in GA.
+async function useServiceAccount(key) {
+  if (!key.client_email || !key.private_key) throw new Error('This service account key file is incomplete.');
+  try {
+    await serviceAccountToken(key); // fails early if the key is invalid or disabled
+  } catch (err) {
+    throw new Error(
+      `Google rejected this service account key (${err.message.match(/\(([^)]*)\)/)?.[1] || err.message}). ` +
+        'Make sure the key was not deleted and the service account still exists, or create a new key.',
+    );
+  }
+  await writePrivateJson(SERVICE_ACCOUNT_FILE, key);
+  await rm(TOKEN_FILE, { force: true });
+  clearCachedToken();
+  return { pending: false, email: key.client_email, serviceAccount: true };
+}
+
 export async function logout() {
+  await rm(SERVICE_ACCOUNT_FILE, { force: true });
   await rm(TOKEN_FILE, { force: true });
   clearCachedToken();
 }
