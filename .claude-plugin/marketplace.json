@@ -1,0 +1,14 @@
+{
+  "name": "google-analytics-mcp",
+  "owner": { "name": "mmoasa00" },
+  "metadata": {
+    "description": "Free, open-source Google Analytics 4 connector for Claude."
+  },
+  "plugins": [
+    {
+      "name": "google-analytics",
+      "source": "./plugins/google-analytics",
+      "description": "Read-only access to all your Google Analytics 4 accounts, properties, reports, funnels and realtime data. Free, no third-party service."
+    }
+  ]
+}

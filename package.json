@@ -1,0 +1,12 @@
+{
+  "name": "google-analytics-mcp",
+  "version": "1.0.0",
+  "description": "Free, zero-dependency Google Analytics 4 MCP server for Claude and other MCP clients.",
+  "type": "module",
+  "bin": { "google-analytics-mcp": "plugins/google-analytics/server/index.js" },
+  "files": ["plugins/google-analytics/server", "plugins/google-analytics/package.json", "plugins/google-analytics/oauth-client.json"],
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "repository": "github:mmoasa00/google-analytics-mcp",
+  "keywords": ["mcp", "google-analytics", "ga4", "claude"]
+}
